@@ -14,6 +14,10 @@ export interface PersonalDocument {
   date_begin: string,
   files: File[]
 }
+// eslint-disable-next-line @typescript-eslint/no-empty-interface
+export interface PersonalDocumentReq extends Omit<PersonalDocument, 'id' | 'files'>{}
+// eslint-disable-next-line @typescript-eslint/no-empty-interface
+export interface PersonalDocumentRes extends Omit<PersonalDocument, 'files'>{}
 
 export interface Patient {
   id: number,
