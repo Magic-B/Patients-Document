@@ -26,7 +26,7 @@ q-dialog(persistent ref='dialogRef' @hide='onDialogHide')
           outlined
           v-model='req.pd_number'
           label='Номер'
-          :rules='[val => (!!val && val.length > 0) || "Введите номер докумнета"]'
+          :rules='[val => (!!val && val.length === 7) || "Введите номер докумнета"]'
           lazy-rules
           mask='###-###'
         )
@@ -34,7 +34,7 @@ q-dialog(persistent ref='dialogRef' @hide='onDialogHide')
           rounded
           outlined
           v-model='req.date_begin'
-          :rules='[val => (val && val.length > 0) || "Введите дату"]'
+          :rules='[val => dayjs(val, "DD.MM.YYYY", true).isValid() || "Введите корректную дату"]'
           lazy-rules
           mask='##.##.####'
         )
@@ -106,11 +106,14 @@ q-dialog(persistent ref='dialogRef' @hide='onDialogHide')
 </template>
 
 <script lang='ts'>
-import { defineComponent, onMounted, watch, ref, toRefs } from 'vue'
+import { defineComponent, onMounted, ref, toRefs } from 'vue'
 import { usePatientStore } from 'stores/patient-store'
 import type { PersonalDocument, PersonalDocumentRes, File } from 'src/types/patient'
 import { useDialogPluginComponent, QForm } from 'quasar'
 import { cloneDeep, omit, remove, isEqual, filter } from 'lodash'
+import dayjs from 'dayjs'
+import customParseFormat from 'dayjs/plugin/customParseFormat'
+dayjs.extend(customParseFormat)
 import notify from 'src/utils/util'
 
 export default defineComponent({
@@ -140,11 +143,11 @@ export default defineComponent({
       files: []
     } as PersonalDocument)
     const formRef = ref<QForm | null>(null)
-    const options = ['Паспорт', 'Загран паспорт', 'Водительское удостоверение', 'Свидетельство рождения', 'Слово матери']
+    const options: string[] = ['Паспорт', 'Загран паспорт', 'Водительское удостоверение', 'Свидетельство рождения', 'Слово матери']
     const reqFiles = ref<FormData[]>([])
     const loading = ref(false)
 
-    const addFile = async (file: any) => {
+    const addFile = (file: Blob): void => {
       const formData = new FormData()
       formData.append('file', file)
       formData.append('description', req.value.document_type_name)
@@ -154,15 +157,15 @@ export default defineComponent({
       } as File)
     }
 
-    const deleteFile = async (file: any) => {
-      if (file.id) {
+    const deleteFile = (file: File | {file_url: string}): void => {
+      if ('id' in file) {
         file.destroy = true
       } else {
         remove(req.value.files, (f) => f.file_url === file.file_url)
       }
     }
 
-    const onSubmit = () => {
+    const onSubmit = (): void => {
       if (formRef.value) {
         formRef.value.validate().then(async (success) => {
           if (success) {
@@ -171,12 +174,11 @@ export default defineComponent({
             const request = omit(req.value, ['files', 'id'])
             const isDocumentChanged = isEqual(omit(req.value, 'files'), omit(document.value, 'files'))
             const removeFiles = filter(req.value.files, { destroy: true })
-            const filePromises = ref<any>([])
-            let removeFilePromises: any = []
+            const filePromises = ref<Promise<File>[]>([])
+            const removeFilePromises = ref<Promise<void>[]>([])
             try {
               if (document.value?.id && !isDocumentChanged) {
                 response.value = await updatePersonalDocument(req.value.id, request)
-                console.log('up')
               }
               if (!document.value?.id) {
                 response.value = await createPersonalDocument(patient.value.id, request)
@@ -187,8 +189,8 @@ export default defineComponent({
                 await Promise.all(filePromises.value)
               }
               if (removeFiles.length) {
-                removeFilePromises = removeFiles.map((file: any) => removeFile(file.id))
-                await Promise.all(removeFilePromises)
+                removeFilePromises.value = removeFiles.map((file: any) => removeFile(file.id))
+                await Promise.all(removeFilePromises.value)
               }
               dialogRef.value?.hide()
               notify.positive(`Документ был ${document.value?.id ? 'изменён' : 'добавлен'}`)
@@ -214,6 +216,7 @@ export default defineComponent({
       dialogRef,
       formRef,
       loading,
+      dayjs,
       addFile,
       deleteFile,
       onDialogHide,
@@ -228,6 +231,7 @@ export default defineComponent({
   display: grid;
   grid-template-columns: repeat(3, 1fr);
   justify-items: center;
+  row-gap: 10px;
 }
 .img {
   width: 100%;

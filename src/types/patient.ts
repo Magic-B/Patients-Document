@@ -2,7 +2,8 @@ export interface File {
   id: number,
   file_url: string,
   description: string,
-  file_extension: string
+  file_extension: string,
+  destroy?: boolean
 }
 
 export interface PersonalDocument {

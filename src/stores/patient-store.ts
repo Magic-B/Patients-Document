@@ -23,7 +23,6 @@ export const usePatientStore = defineStore('patient', {
       const response = await backend.updatePersonalDocument(documentId, data)
       const personalDocument = find(this.patient.personal_documents, { id: documentId })
       assign(personalDocument, response.data)
-      console.log(this.patient)
       return response.data
     },
     async addFileToPersonalDocument (documentId: number, file: FormData): Promise<File> {
