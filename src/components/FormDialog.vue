@@ -165,33 +165,43 @@ export default defineComponent({
       }
     }
 
+    const documentActions = async () => {
+      const request = omit(req.value, ['files', 'id'])
+      const isDocumentChanged = isEqual(omit(req.value, 'files'), omit(document.value, 'files'))
+      if (document.value?.id && !isDocumentChanged) {
+        return await updatePersonalDocument(req.value.id, request)
+      }
+      if (!document.value?.id) {
+        return await createPersonalDocument(patient.value.id, request)
+      }
+      return {} as PersonalDocumentRes
+    }
+
+    const fileActions = async (response: PersonalDocumentRes) => {
+      const removeFiles = filter(req.value.files, { destroy: true })
+      const filePromises = ref<Promise<File>[]>([])
+      const removeFilePromises = ref<Promise<void>[]>([])
+
+      if (reqFiles.value.length) {
+        const documentId = response.id ? response.id : req.value.id
+        filePromises.value = reqFiles.value.map(file => addFileToPersonalDocument(documentId, file))
+        await Promise.all(filePromises.value)
+      }
+      if (removeFiles.length) {
+        removeFilePromises.value = removeFiles.map(file => removeFile(file.id))
+        await Promise.all(removeFilePromises.value)
+      }
+    }
+
     const onSubmit = (): void => {
       if (formRef.value) {
         formRef.value.validate().then(async (success) => {
           if (success) {
             loading.value = true
             const response = ref({} as PersonalDocumentRes)
-            const request = omit(req.value, ['files', 'id'])
-            const isDocumentChanged = isEqual(omit(req.value, 'files'), omit(document.value, 'files'))
-            const removeFiles = filter(req.value.files, { destroy: true })
-            const filePromises = ref<Promise<File>[]>([])
-            const removeFilePromises = ref<Promise<void>[]>([])
             try {
-              if (document.value?.id && !isDocumentChanged) {
-                response.value = await updatePersonalDocument(req.value.id, request)
-              }
-              if (!document.value?.id) {
-                response.value = await createPersonalDocument(patient.value.id, request)
-              }
-              if (reqFiles.value.length) {
-                const documentId = response.value.id ? response.value.id : req.value.id
-                filePromises.value = reqFiles.value.map((file: any) => addFileToPersonalDocument(documentId, file))
-                await Promise.all(filePromises.value)
-              }
-              if (removeFiles.length) {
-                removeFilePromises.value = removeFiles.map((file: any) => removeFile(file.id))
-                await Promise.all(removeFilePromises.value)
-              }
+              response.value = await documentActions()
+              await fileActions(response.value)
               dialogRef.value?.hide()
               notify.positive(`Документ был ${document.value?.id ? 'изменён' : 'добавлен'}`)
             } catch (err) {
